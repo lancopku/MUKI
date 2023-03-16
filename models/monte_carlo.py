@@ -69,7 +69,6 @@ class MCBert(BertForSequenceClassification):
 
             # teacher forward
             with torch.no_grad():
-                # print(self.teacher1.config.hidden_dropout_prob, self.teacher2.config.hidden_dropout_prob)
                 probs = []
                 for m in range(monte_carlo_K):
                     for i, t_model in enumerate(self.teachers):
@@ -86,41 +85,24 @@ class MCBert(BertForSequenceClassification):
 
                         teacher_logit = teacher_output[0]
                         teacher_prob = F.softmax(teacher_logit, dim=-1)
-                        # print(teacher_prob)
                         if m == 0:
                             probs.append(teacher_prob)  #
                         else:
                             probs[i] += teacher_prob
-                #print(len(probs))
+                
                 probs = [prob / monte_carlo_K for prob in probs]
-                #print(probs)
                 uncertainty = [-torch.sum(torch.log(prob) * prob, dim=-1) / self._get_entropy_upper_bound(
                     prob.size(1)) for prob in probs]
-                # print(uncertainty)
                 uncertainty_score = [1 - u.unsqueeze(1) for u in uncertainty]
                 #print(uncertainty_score)
                 teacher_score = torch.cat(uncertainty_score, dim=1)  # bsz, num_teacher
                 # print(teacher_score.shape)
-                np.save("teacher_md/gs_4teacher_%d.npy" % self.cnt , teacher_score.detach().cpu().numpy()) 
-                print('original label', labels) 
-                #teacher_label = torch.where(labels < 4, 0, 1 )
-                teacher_label = torch.where( labels < 2 , 11, labels) # # 3, 12
-                # print(teacher_label) #
-                teacher_label = torch.where( teacher_label < 4,  10, teacher_label)
+                np.save("teacher_md/teacher_scores.npy" % self.cnt , teacher_score.detach().cpu().numpy()) 
 
-                teacher_label = torch.where(teacher_label < 6, 9, teacher_label) 
-                teacher_label = torch.where(teacher_label < 8, 8, teacher_label) 
-                teacher_label =  11 - teacher_label 
-                print('gold teacher', teacher_label)
-
-                               
-                #
                 predicted_teacher = torch.argmax(teacher_score, dim=-1)
                 print(predicted_teacher)
                 ground_truth_teacher = teacher_label.long()  #torch.where(labels < self.num_labels // 2, 0, 1)
  
-                # for t1e, t2e, gtt in zip(t1_ent, t2_ent, ground_truth_teacher):
-                # print(t1e, t2e, gtt)
                 self.acc += torch.mean((predicted_teacher == ground_truth_teacher).float())
 
                 print(self.acc / self.cnt)
@@ -130,7 +112,6 @@ class MCBert(BertForSequenceClassification):
         loss = 0.0
         if labels is not None:
             if self.num_labels == 1:
-                #  We are doing regression
                 loss_fct = MSELoss()
                 loss = loss_fct(student_logits.view(-1), labels.view(-1))
             else:

@@ -95,3 +95,5 @@ with torch.no_grad():  # Monte Carlo Dropout on the fly
 
             teacher_probs = [F.softmax(t_logit / self.kd_temperature, dim=-1) for t_logit in t_logits]
 ```
+
+If you want to compute the teacher score file, please check the `scripts/md_cnews.sh` and `models/monte_carlo.py` for more details.
